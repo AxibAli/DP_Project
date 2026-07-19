@@ -41,8 +41,15 @@ function initTabs() {
       if (isActive) moveIndicator(tab);
     }
     for (const panel of panels) {
-      panel.hidden = panel.dataset.panel !== name;
-      panel.classList.toggle("is-active", panel.dataset.panel === name);
+      const isActive = panel.dataset.panel === name;
+      panel.hidden = !isActive;
+      // The stylesheet's ".auth-form { display: flex }" has the same
+      // specificity as the browser's default "[hidden] { display: none }"
+      // rule, and author styles win that tie — so the `hidden` attribute
+      // alone doesn't actually hide it. An inline style always outranks a
+      // stylesheet class, so set/clear it here instead of touching CSS.
+      panel.style.display = isActive ? "" : "none";
+      panel.classList.toggle("is-active", isActive);
     }
   }
 
