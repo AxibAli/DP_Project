@@ -1,0 +1,27 @@
+{{define "content"}}
+<p><a href="/">&larr; back to overview</a></p>
+<h1 id="animal-title">{{.Animal.Name}} <span class="muted">({{.Animal.Tag}})</span></h1>
+<div class="detail-grid">
+  <section class="card">
+    <h2>Current Reading</h2>
+    <div id="current-reading">Loading&hellip;</div>
+  </section>
+  <section class="card">
+    <h2>Trend (last 20 readings)</h2>
+    <canvas id="trend-canvas" width="480" height="200"></canvas>
+  </section>
+  <section class="card">
+    <h2>Alerts</h2>
+    <div id="animal-alerts">Loading&hellip;</div>
+  </section>
+  <section class="card">
+    <h2>Vaccinations</h2>
+    <div id="vaccinations">Loading&hellip;</div>
+    <form id="vaccination-form">
+      <input type="text" id="vac-name" placeholder="Vaccine name" required>
+      <button type="submit">Add</button>
+    </form>
+  </section>
+</div>
+<script>window.ANIMAL_ID = {{.Animal.ID}};</script>
+{{end}}
