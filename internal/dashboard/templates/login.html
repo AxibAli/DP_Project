@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Livestock Health Monitor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container login-container">
+    <div class="card login-card">
+      <h1>🐄 Livestock Health Monitor</h1>
+      <form id="login-form">
+        <label>Email<input type="email" id="email" required autocomplete="username"></label>
+        <label>Password<input type="password" id="password" required autocomplete="current-password"></label>
+        <button type="submit">Sign in</button>
+        <p id="login-error" class="error-text" style="display:none"></p>
+      </form>
+      <hr>
+      <details>
+        <summary>Create a new account</summary>
+        <form id="register-form">
+          <label>Email<input type="email" id="reg-email" required autocomplete="username"></label>
+          <label>Password<input type="password" id="reg-password" required autocomplete="new-password"></label>
+          <button type="submit">Register</button>
+          <p id="register-message" style="display:none"></p>
+        </form>
+      </details>
+    </div>
+  </main>
+  <script src="/static/login.js"></script>
+</body>
+</html>

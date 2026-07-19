@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gofmt -w internal/api/api.go internal/models/models.go)",
+      "Bash(gofmt -l .)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='go.exe' or Name='server.exe' or Name='main.exe'\\\\\" | Select-Object ProcessId, CommandLine\")",
+      "Bash(powershell -Command \"Stop-Process -Id 13520,21592 -Force\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='go.exe' or Name='server.exe'\\\\\" | Select-Object ProcessId\")",
+      "PowerShell(sqlcmd -S localhost\\\\SQLEXPRESS -E -Q \"ALTER DATABASE livestock SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE livestock; CREATE DATABASE livestock;\")",
+      "Bash(DB_DSN=\"sqlserver://localhost:1433?database=livestock\" PORT=8080 SENSOR_COUNT=5 go run ./cmd/server)",
+      "Bash(cd /tmp)",
+      "Bash(rm -f admin.jar user.jar)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8080/api/animals)",
+      "Bash(curl -s -c admin.jar -X POST http://localhost:8080/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@livestock.local\",\"password\":\"AdminPass123!\"}')",
+      "Bash(curl -s -b admin.jar http://localhost:8080/api/animals)",
+      "Bash(curl -s -b admin.jar http://localhost:8080/api/auth/me)",
+      "Bash(curl -s -b admin.jar http://localhost:8080/api/users)",
+      "Bash(rm -f user.jar)",
+      "Bash(curl -s -c user.jar -X POST http://localhost:8080/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"user@livestock.local\",\"password\":\"UserPass123!\"}')",
+      "Bash(curl -s -b user.jar http://localhost:8080/api/animals)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -b user.jar http://localhost:8080/api/users)",
+      "Bash(powershell -Command \"sqlcmd -S localhost\\\\SQLEXPRESS -E -d livestock -Q \\\\\"SELECT id, email, created_at FROM users\\\\\"\")",
+      "Bash(powershell -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='go.exe' or Name='server.exe'\\\\\" | Select-Object ProcessId, CommandLine\")",
+      "Bash(powershell -Command \"Stop-Process -Id 29108,21128 -Force\")",
+      "Bash(curl -s -m 3 -w \"\\\\nHTTP:%{http_code}\\\\n\" http://localhost:8080/api/animals)",
+      "Bash(go mod *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

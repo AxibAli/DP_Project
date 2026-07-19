@@ -9,8 +9,21 @@ function severityClass(alerts) {
   return "";
 }
 
-async function fetchJSON(url, opts) {
-  const res = await fetch(url, opts);
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function fetchJSON(url, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  if (opts.method && opts.method !== "GET") {
+    headers["X-CSRF-Token"] = getCookie("csrf_token");
+  }
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  if (res.status === 401) {
+    window.location.href = "/login";
+    throw new Error("not authenticated");
+  }
   if (!res.ok) throw new Error(`${url} -> ${res.status}`);
   if (res.status === 204) return null;
   return res.json();
@@ -160,7 +173,81 @@ function initDetailForm(animalId) {
   });
 }
 
+function initLogout() {
+  const btn = document.getElementById("logout-btn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    await fetchJSON("/api/auth/logout", { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  });
+}
+
+// --- Admin users page ---
+
+async function loadUsers() {
+  const table = document.getElementById("users-table");
+  if (!table) return;
+
+  const users = await fetchJSON("/api/users");
+  table.innerHTML = "<tr><th>Email</th><th>Role</th><th>Created</th><th></th></tr>";
+  for (const u of users) {
+    const row = document.createElement("tr");
+    const canDelete = u.id !== window.CURRENT_USER_ID;
+    row.innerHTML = `
+      <td>${u.email}</td>
+      <td>
+        <select data-id="${u.id}" class="role-select">
+          <option value="USER" ${u.role === "USER" ? "selected" : ""}>USER</option>
+          <option value="ADMIN" ${u.role === "ADMIN" ? "selected" : ""}>ADMIN</option>
+        </select>
+      </td>
+      <td>${new Date(u.created_at).toLocaleDateString()}</td>
+      <td>${canDelete ? `<button data-id="${u.id}" class="delete-btn">Delete</button>` : ""}</td>
+    `;
+    table.appendChild(row);
+  }
+
+  table.querySelectorAll(".role-select").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      await fetchJSON(`/api/users/${sel.dataset.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: sel.value }),
+      });
+      loadUsers();
+    });
+  });
+  table.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await fetchJSON(`/api/users/${btn.dataset.id}`, { method: "DELETE" });
+      loadUsers();
+    });
+  });
+}
+
+function initUsersPage() {
+  const form = document.getElementById("create-user-form");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    await fetchJSON("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: document.getElementById("new-email").value,
+        password: document.getElementById("new-password").value,
+        role: document.getElementById("new-role").value,
+      }),
+    });
+    form.reset();
+    loadUsers();
+  });
+  loadUsers();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initLogout();
+  initUsersPage();
   if (document.getElementById("animal-grid")) {
     refreshOverview();
     setInterval(refreshOverview, POLL_INTERVAL_MS);

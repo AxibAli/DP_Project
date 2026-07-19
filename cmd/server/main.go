@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"livestock/internal/api"
+	"livestock/internal/auth"
 	"livestock/internal/dashboard"
 	"livestock/internal/models"
 	"livestock/internal/rules"
@@ -35,6 +36,15 @@ func main() {
 	if err != nil || sensorCount <= 0 {
 		sensorCount = 5
 	}
+	// Secure cookies require HTTPS. Default to false so local http://
+	// development works out of the box; set COOKIE_SECURE=true whenever
+	// this is deployed behind TLS.
+	secureCookies := getenv("COOKIE_SECURE", "false") == "true"
+
+	adminEmail := getenv("ADMIN_EMAIL", "admin@livestock.local")
+	adminPassword := getenv("ADMIN_PASSWORD", "AdminPass123!")
+	demoUserEmail := getenv("DEMO_USER_EMAIL", "user@livestock.local")
+	demoUserPassword := getenv("DEMO_USER_PASSWORD", "UserPass123!")
 
 	store, err := storage.Open(dsn)
 	if err != nil {
@@ -43,7 +53,16 @@ func main() {
 	if err := store.AutoMigrate(); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
-	if err := store.SeedIfEmpty(); err != nil {
+
+	adminHash, err := auth.HashPassword(adminPassword)
+	if err != nil {
+		log.Fatalf("failed to hash admin password: %v", err)
+	}
+	userHash, err := auth.HashPassword(demoUserPassword)
+	if err != nil {
+		log.Fatalf("failed to hash demo user password: %v", err)
+	}
+	if err := store.SeedIfEmpty(adminEmail, adminHash, demoUserEmail, userHash); err != nil {
 		log.Fatalf("failed to seed database: %v", err)
 	}
 
@@ -67,8 +86,11 @@ func main() {
 	var seq atomic.Uint64
 	go runIngestWorker(ctx, store, readings, animalByID, &seq)
 
-	apiHandler := api.New(store)
-	dashboardHandler, err := dashboard.New(store)
+	authSvc := auth.NewService(store)
+	go expireSessionsPeriodically(ctx, store)
+
+	apiHandler := api.New(store, authSvc, secureCookies)
+	dashboardHandler, err := dashboard.New(store, authSvc)
 	if err != nil {
 		log.Fatalf("failed to build dashboard templates: %v", err)
 	}
@@ -95,6 +117,24 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
+}
+
+// expireSessionsPeriodically garbage-collects expired session rows so the
+// sessions table doesn't grow unbounded. Rejection of expired sessions on
+// use (GetValidSession) does not depend on this running; it's just hygiene.
+func expireSessionsPeriodically(ctx context.Context, store *storage.Store) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := store.DeleteExpiredSessions(); err != nil {
+				log.Printf("failed to clean up expired sessions: %v", err)
+			}
+		}
+	}
 }
 
 // runIngestWorker consumes readings from the shared sensor channel, assigns

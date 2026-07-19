@@ -9,6 +9,13 @@
 <body>
   <header class="topbar">
     <a href="/" class="brand">🐄 Livestock Health Monitor</a>
+    <nav class="topbar-nav">
+      {{if .User}}
+        {{if eq .User.Role "ADMIN"}}<a href="/admin/users" class="nav-link">Manage Users</a>{{end}}
+        <span class="nav-user">{{.User.Email}} <span class="role-pill">{{.User.Role}}</span></span>
+        <button id="logout-btn" class="nav-link">Logout</button>
+      {{end}}
+    </nav>
   </header>
   <main class="container">
     {{template "content" .}}
