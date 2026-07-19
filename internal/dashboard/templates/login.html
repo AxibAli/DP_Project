@@ -6,26 +6,68 @@
   <title>Sign in — Livestock Health Monitor</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-  <main class="container login-container">
-    <div class="card login-card">
-      <h1>🐄 Livestock Health Monitor</h1>
-      <form id="login-form">
-        <label>Email<input type="email" id="email" required autocomplete="username"></label>
-        <label>Password<input type="password" id="password" required autocomplete="current-password"></label>
-        <button type="submit">Sign in</button>
-        <p id="login-error" class="error-text" style="display:none"></p>
+<body class="auth-body">
+  <main class="auth-shell">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="auth-logo">🐄</span>
+        <h1>Livestock Health Monitor</h1>
+        <p class="auth-subtitle">Sign in to keep an eye on your herd</p>
+      </div>
+
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab is-active" data-tab="login" role="tab" aria-selected="true">Sign in</button>
+        <button type="button" class="auth-tab" data-tab="register" role="tab" aria-selected="false">Create account</button>
+        <span class="auth-tab-indicator"></span>
+      </div>
+
+      <form id="login-form" class="auth-form is-active" data-panel="login" autocomplete="on">
+        <div class="field">
+          <label for="email">Email</label>
+          <div class="input-wrap">
+            <span class="input-icon">✉️</span>
+            <input type="email" id="email" placeholder="you@example.com" required autocomplete="username">
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="input-action" data-toggle-for="password" aria-label="Show password">👁️</button>
+          </div>
+        </div>
+        <button type="submit" class="auth-submit">
+          <span class="btn-label">Sign in</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+        <p id="login-error" class="form-message" hidden></p>
       </form>
-      <hr>
-      <details>
-        <summary>Create a new account</summary>
-        <form id="register-form">
-          <label>Email<input type="email" id="reg-email" required autocomplete="username"></label>
-          <label>Password<input type="password" id="reg-password" required autocomplete="new-password"></label>
-          <button type="submit">Register</button>
-          <p id="register-message" style="display:none"></p>
-        </form>
-      </details>
+
+      <form id="register-form" class="auth-form" data-panel="register" hidden autocomplete="on">
+        <div class="field">
+          <label for="reg-email">Email</label>
+          <div class="input-wrap">
+            <span class="input-icon">✉️</span>
+            <input type="email" id="reg-email" placeholder="you@example.com" required autocomplete="username">
+          </div>
+        </div>
+        <div class="field">
+          <label for="reg-password">Password</label>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="reg-password" placeholder="At least 8 characters" required minlength="8" autocomplete="new-password">
+            <button type="button" class="input-action" data-toggle-for="reg-password" aria-label="Show password">👁️</button>
+          </div>
+        </div>
+        <button type="submit" class="auth-submit">
+          <span class="btn-label">Create account</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+        <p id="register-message" class="form-message" hidden></p>
+      </form>
+
+      <p class="auth-footnote">New accounts start with standard <strong>USER</strong> access.</p>
     </div>
   </main>
   <script src="/static/login.js"></script>
