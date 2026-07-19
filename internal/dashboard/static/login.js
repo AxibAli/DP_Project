@@ -9,10 +9,78 @@ async function postJSON(url, body) {
   return data;
 }
 
+function showMessage(el, text, kind) {
+  el.textContent = text;
+  el.className = `form-message ${kind}-text`;
+  el.hidden = false;
+}
+
+function setLoading(form, loading) {
+  const btn = form.querySelector(".auth-submit");
+  btn.disabled = loading;
+  btn.classList.toggle("is-loading", loading);
+}
+
+// --- Tab switching between "Sign in" and "Create account" ---
+
+function initTabs() {
+  const tabs = Array.from(document.querySelectorAll(".auth-tab"));
+  const indicator = document.querySelector(".auth-tab-indicator");
+  const panels = Array.from(document.querySelectorAll(".auth-form"));
+
+  function moveIndicator(tab) {
+    indicator.style.width = `${tab.offsetWidth}px`;
+    indicator.style.transform = `translateX(${tab.offsetLeft}px)`;
+  }
+
+  function activate(name) {
+    for (const tab of tabs) {
+      const isActive = tab.dataset.tab === name;
+      tab.classList.toggle("is-active", isActive);
+      tab.setAttribute("aria-selected", String(isActive));
+      if (isActive) moveIndicator(tab);
+    }
+    for (const panel of panels) {
+      panel.hidden = panel.dataset.panel !== name;
+      panel.classList.toggle("is-active", panel.dataset.panel === name);
+    }
+  }
+
+  tabs.forEach((tab) => tab.addEventListener("click", () => activate(tab.dataset.tab)));
+  window.addEventListener("resize", () => {
+    const current = tabs.find((t) => t.classList.contains("is-active"));
+    if (current) moveIndicator(current);
+  });
+
+  // Reading offsetLeft/offsetWidth forces layout synchronously, so this
+  // doesn't need to wait for a paint frame — and rAF would never fire if
+  // this page loads in a background tab, leaving the indicator at 0x0.
+  activate("login");
+}
+
+// --- Password show/hide toggle ---
+
+function initPasswordToggles() {
+  document.querySelectorAll("[data-toggle-for]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(btn.dataset.toggleFor);
+      const showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "👁️" : "🙈";
+      btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+    });
+  });
+}
+
+initTabs();
+initPasswordToggles();
+
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
   const errorEl = document.getElementById("login-error");
-  errorEl.style.display = "none";
+  errorEl.hidden = true;
+  setLoading(form, true);
   try {
     await postJSON("/api/auth/login", {
       email: document.getElementById("email").value,
@@ -20,24 +88,27 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     });
     window.location.href = "/";
   } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.style.display = "block";
+    showMessage(errorEl, err.message, "error");
+    setLoading(form, false);
   }
 });
 
 document.getElementById("register-form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
   const msgEl = document.getElementById("register-message");
-  msgEl.style.display = "block";
+  msgEl.hidden = true;
+  setLoading(form, true);
   try {
     await postJSON("/api/auth/register", {
       email: document.getElementById("reg-email").value,
       password: document.getElementById("reg-password").value,
     });
-    msgEl.textContent = "Account created — you can sign in now.";
-    msgEl.className = "success-text";
+    showMessage(msgEl, "Account created — you can sign in now.", "success");
+    form.reset();
   } catch (err) {
-    msgEl.textContent = err.message;
-    msgEl.className = "error-text";
+    showMessage(msgEl, err.message, "error");
+  } finally {
+    setLoading(form, false);
   }
 });
