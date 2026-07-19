@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"gorm.io/driver/sqlserver"
 	"gorm.io/gorm"
@@ -25,39 +27,150 @@ func Open(dsn string) (*Store, error) {
 	return &Store{DB: db}, nil
 }
 
+// AutoMigrate creates/updates tables. Users and Sessions are migrated before
+// Animal so the OwnerID/UserID foreign keys can be created.
 func (s *Store) AutoMigrate() error {
-	return s.DB.AutoMigrate(&models.Animal{}, &models.Reading{}, &models.Alert{}, &models.Vaccination{})
+	return s.DB.AutoMigrate(
+		&models.User{},
+		&models.Session{},
+		&models.Animal{},
+		&models.Reading{},
+		&models.Alert{},
+		&models.Vaccination{},
+	)
 }
 
-// SeedIfEmpty inserts a handful of demo animals if the Animal table has no rows.
-func (s *Store) SeedIfEmpty() error {
-	var count int64
-	if err := s.DB.Model(&models.Animal{}).Count(&count).Error; err != nil {
+// SeedIfEmpty inserts a demo admin, a demo user, and a handful of demo
+// animals owned by the demo user if the Animal table has no rows.
+// Passwords are supplied already-hashed by the caller (main), keeping
+// storage free of hashing/auth concerns.
+func (s *Store) SeedIfEmpty(adminEmail, adminPasswordHash, userEmail, userPasswordHash string) error {
+	var animalCount int64
+	if err := s.DB.Model(&models.Animal{}).Count(&animalCount).Error; err != nil {
 		return err
 	}
-	if count > 0 {
+	if animalCount > 0 {
 		return nil
 	}
 
+	admin, err := s.getOrCreateUser(adminEmail, adminPasswordHash, models.RoleAdmin)
+	if err != nil {
+		return err
+	}
+	demoUser, err := s.getOrCreateUser(userEmail, userPasswordHash, models.RoleUser)
+	if err != nil {
+		return err
+	}
+
 	demo := []models.Animal{
-		{Name: "Bessie", Species: "cow", Tag: "Cow-01"},
-		{Name: "Daisy", Species: "cow", Tag: "Cow-02"},
-		{Name: "Wooly", Species: "sheep", Tag: "Sheep-01"},
-		{Name: "Porky", Species: "pig", Tag: "Pig-01"},
-		{Name: "Clucky", Species: "chicken", Tag: "Chicken-01"},
+		{Name: "Bessie", Species: "cow", Tag: "Cow-01", OwnerID: demoUser.ID},
+		{Name: "Daisy", Species: "cow", Tag: "Cow-02", OwnerID: demoUser.ID},
+		{Name: "Wooly", Species: "sheep", Tag: "Sheep-01", OwnerID: demoUser.ID},
+		{Name: "Porky", Species: "pig", Tag: "Pig-01", OwnerID: admin.ID},
+		{Name: "Clucky", Species: "chicken", Tag: "Chicken-01", OwnerID: admin.ID},
 	}
 	if err := s.DB.Create(&demo).Error; err != nil {
 		return err
 	}
-	log.Printf("seeded %d demo animals", len(demo))
+	log.Printf("seeded %d demo animals for admin=%s user=%s", len(demo), adminEmail, userEmail)
 	return nil
+}
+
+func (s *Store) getOrCreateUser(email, passwordHash string, role models.Role) (*models.User, error) {
+	var u models.User
+	err := s.DB.Where("email = ?", email).First(&u).Error
+	if err == nil {
+		return &u, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	u = models.User{Email: email, Password: passwordHash, Role: role}
+	if err := s.DB.Create(&u).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+// --- Users ---
+
+func (s *Store) CreateUser(u *models.User) error {
+	return s.DB.Create(u).Error
+}
+
+func (s *Store) GetUserByEmail(email string) (*models.User, error) {
+	var u models.User
+	if err := s.DB.Where("email = ?", email).First(&u).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (s *Store) GetUser(id uint) (*models.User, error) {
+	var u models.User
+	if err := s.DB.First(&u, id).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (s *Store) ListUsers() ([]models.User, error) {
+	var users []models.User
+	err := s.DB.Order("id").Find(&users).Error
+	return users, err
+}
+
+func (s *Store) UpdateUserRole(id uint, role models.Role) error {
+	return s.DB.Model(&models.User{}).Where("id = ?", id).Update("role", role).Error
+}
+
+func (s *Store) DeleteUser(id uint) error {
+	return s.DB.Delete(&models.User{}, id).Error
+}
+
+// --- Sessions ---
+
+func (s *Store) CreateSession(sess *models.Session) error {
+	return s.DB.Create(sess).Error
+}
+
+// GetValidSession returns the session for the given token only if it
+// exists and has not expired. Expired-but-present sessions are treated as
+// not found so callers uniformly reject them.
+func (s *Store) GetValidSession(token string) (*models.Session, error) {
+	var sess models.Session
+	err := s.DB.Where("session_token = ? AND expires_at > ?", token, time.Now()).First(&sess).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sess, nil
+}
+
+func (s *Store) TouchSession(id uint, lastAccessedAt time.Time) error {
+	return s.DB.Model(&models.Session{}).Where("id = ?", id).Update("last_accessed_at", lastAccessedAt).Error
+}
+
+func (s *Store) DeleteSessionByToken(token string) error {
+	return s.DB.Where("session_token = ?", token).Delete(&models.Session{}).Error
+}
+
+func (s *Store) DeleteExpiredSessions() error {
+	return s.DB.Where("expires_at <= ?", time.Now()).Delete(&models.Session{}).Error
 }
 
 // --- Animals ---
 
+// ListAnimals returns every animal (admin view).
 func (s *Store) ListAnimals() ([]models.Animal, error) {
 	var animals []models.Animal
 	err := s.DB.Order("id").Find(&animals).Error
+	return animals, err
+}
+
+// ListAnimalsByOwner returns only animals owned by the given user.
+func (s *Store) ListAnimalsByOwner(ownerID uint) ([]models.Animal, error) {
+	var animals []models.Animal
+	err := s.DB.Where("owner_id = ?", ownerID).Order("id").Find(&animals).Error
 	return animals, err
 }
 
@@ -90,17 +203,6 @@ func (s *Store) LatestReading(animalID uint) (*models.Reading, error) {
 	return &r, nil
 }
 
-func (s *Store) LatestReadingsByAnimal(animalIDs []uint) (map[uint]models.Reading, error) {
-	result := make(map[uint]models.Reading)
-	for _, id := range animalIDs {
-		r, err := s.LatestReading(id)
-		if err == nil {
-			result[id] = *r
-		}
-	}
-	return result, nil
-}
-
 // --- Readings ---
 
 func (s *Store) CreateReading(r *models.Reading) error {
@@ -129,10 +231,31 @@ func (s *Store) ListAlertsForAnimal(animalID uint) ([]models.Alert, error) {
 	return alerts, err
 }
 
+// ListActiveAlerts returns every unresolved alert (admin view).
 func (s *Store) ListActiveAlerts() ([]models.Alert, error) {
 	var alerts []models.Alert
 	err := s.DB.Where("resolved = ?", false).Order("sequence_no desc").Find(&alerts).Error
 	return alerts, err
+}
+
+// ListActiveAlertsByOwner returns unresolved alerts scoped to animals owned
+// by the given user, via a join on animals.owner_id.
+func (s *Store) ListActiveAlertsByOwner(ownerID uint) ([]models.Alert, error) {
+	var alerts []models.Alert
+	err := s.DB.
+		Joins("JOIN animals ON animals.id = alerts.animal_id").
+		Where("alerts.resolved = ? AND animals.owner_id = ?", false, ownerID).
+		Order("alerts.sequence_no desc").
+		Find(&alerts).Error
+	return alerts, err
+}
+
+func (s *Store) GetAlert(id uint) (*models.Alert, error) {
+	var a models.Alert
+	if err := s.DB.First(&a, id).Error; err != nil {
+		return nil, err
+	}
+	return &a, nil
 }
 
 func (s *Store) ResolveAlert(id uint) error {

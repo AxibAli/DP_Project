@@ -1,0 +1,21 @@
+{{define "content"}}
+<h1>Manage Users</h1>
+<div class="card">
+  <table id="users-table">
+    <tr><th>Email</th><th>Role</th><th>Created</th><th></th></tr>
+  </table>
+</div>
+<div class="card">
+  <h2>Add User</h2>
+  <form id="create-user-form">
+    <input type="email" id="new-email" placeholder="Email" required>
+    <input type="password" id="new-password" placeholder="Password" required>
+    <select id="new-role">
+      <option value="USER">USER</option>
+      <option value="ADMIN">ADMIN</option>
+    </select>
+    <button type="submit">Create</button>
+  </form>
+</div>
+<script>window.CURRENT_USER_ID = {{.User.ID}};</script>
+{{end}}
